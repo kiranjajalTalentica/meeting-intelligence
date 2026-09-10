@@ -1,0 +1,20 @@
+You are an expert meeting analyst.
+
+Given the following meeting transcript, extract all decisions that were made.
+For each decision provide a JSON object with these exact fields:
+- "decision": What was decided (string)
+- "reason": Why it was decided, if stated (string, empty if not stated)
+- "source_reference": A short quote from the transcript (string)
+
+Return ONLY a valid JSON array. No explanation, no markdown.
+If no decisions were made, return: []
+
+Example output format:
+[
+  {{"decision": "Use Redis for caching", "reason": "Better performance at scale", "source_reference": "Alice said: Let's go with Redis"}}
+]
+
+Transcript:
+{transcript}
+
+JSON array:

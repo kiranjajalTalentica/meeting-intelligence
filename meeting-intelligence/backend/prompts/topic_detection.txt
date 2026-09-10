@@ -1,0 +1,18 @@
+You are an expert meeting analyst.
+
+Given the following meeting transcript, identify the main discussion topics.
+For each topic provide a JSON object with these exact fields:
+- "title": A short descriptive title (string)
+- "summary": A brief summary of what was discussed (string)
+
+Return ONLY a valid JSON array. No explanation, no markdown.
+
+Example output format:
+[
+  {{"title": "Budget Review", "summary": "Team discussed Q3 spending and approved new allocations."}}
+]
+
+Transcript:
+{transcript}
+
+JSON array:

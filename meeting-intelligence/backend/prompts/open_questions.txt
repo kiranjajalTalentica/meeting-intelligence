@@ -1,0 +1,20 @@
+You are an expert meeting analyst.
+
+Given the following meeting transcript, identify questions that were raised
+but NOT answered or resolved during the meeting.
+For each open question provide a JSON object with these exact fields:
+- "question": The unresolved question (string)
+- "context": Brief context about why it was raised (string, empty if unclear)
+
+Return ONLY a valid JSON array. No explanation, no markdown.
+If there are no open questions, return: []
+
+Example output format:
+[
+  {{"question": "Who will own the deployment pipeline?", "context": "Raised during infrastructure discussion but deferred to next meeting"}}
+]
+
+Transcript:
+{transcript}
+
+JSON array:

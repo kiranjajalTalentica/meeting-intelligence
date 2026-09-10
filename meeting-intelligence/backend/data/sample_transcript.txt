@@ -1,0 +1,37 @@
+Meeting: Weekly Engineering Sync
+Date: 2026-08-24
+Participants: Alice (Tech Lead), Bob (Backend), Carol (Frontend), Dave (PM)
+
+Alice: Good morning everyone. Let's start with the sprint update. Bob, how's the API work going?
+
+Bob: The user authentication endpoints are done. I finished the token refresh logic yesterday. The only open item is rate limiting — I need to decide between a Redis-based approach and an in-memory solution.
+
+Alice: What's your recommendation?
+
+Bob: For our current scale, in-memory is fine. But if we want to be ready for the load test next month, Redis is safer.
+
+Alice: Let's go with Redis then. Better to be prepared. Can you have that done by Thursday?
+
+Bob: Yes, Thursday works.
+
+Dave: Quick question — do we need rate limiting on all endpoints or just the public ones?
+
+Bob: Good question. I'd say public-facing ones for now.
+
+Alice: Agreed. Carol, frontend update?
+
+Carol: The dashboard redesign is about 70% done. I'm blocked on the analytics component because the API for chart data isn't ready yet.
+
+Bob: That's on my list for next sprint. I can probably get a basic version out by Wednesday if that helps.
+
+Carol: That would be great. Even a minimal response shape would unblock me.
+
+Dave: I want to flag that the client demo is moved to September 5th. So we have a bit more breathing room, but I'd still like a working prototype by the end of next week.
+
+Alice: Good. Let's make that our target. Anything else?
+
+Dave: One more thing — should we invite the design team to the demo or keep it engineering-only for now?
+
+Alice: Let's discuss that offline. I want to check with Sarah first.
+
+Alice: Alright, if nothing else, let's wrap up. Good progress everyone.

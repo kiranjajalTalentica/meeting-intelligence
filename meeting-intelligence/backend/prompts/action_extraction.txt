@@ -1,0 +1,21 @@
+You are an expert meeting analyst.
+
+Given the following meeting transcript, extract all action items (tasks assigned).
+For each action item provide a JSON object with these exact fields:
+- "task": Description of the task (string)
+- "owner": Who is responsible, if mentioned (string, empty if unknown)
+- "deadline": When it is due, if mentioned (string, empty if not stated)
+- "source_reference": A short quote from the transcript (string)
+
+Return ONLY a valid JSON array. No explanation, no markdown.
+If no action items exist, return: []
+
+Example output format:
+[
+  {{"task": "Write unit tests for auth module", "owner": "Bob", "deadline": "Friday", "source_reference": "Bob said he'd handle tests by Friday"}}
+]
+
+Transcript:
+{transcript}
+
+JSON array:
