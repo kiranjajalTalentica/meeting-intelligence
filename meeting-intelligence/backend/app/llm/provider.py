@@ -55,6 +55,41 @@ def _create_gemini() -> BaseChatModel:
     )
 
 
+def _create_groq() -> BaseChatModel:
+    """
+    Create a Groq chat model.
+
+    Groq runs open models (Llama, etc.) on fast LPU hardware, with a
+    free tier that's far more generous than Gemini's. Ideal for this
+    pipeline's many small chunked calls.
+
+    Requires: pip install langchain-groq
+    And GROQ_API_KEY set in environment.
+    """
+    try:
+        from langchain_groq import ChatGroq
+    except ImportError:
+        raise ImportError(
+            "To use Groq, install: pip install langchain-groq"
+        )
+
+    if not settings.groq_api_key:
+        raise ValueError(
+            "GROQ_API_KEY must be set when using the Groq provider"
+        )
+
+    # Groq sits behind Cloudflare, which on some networks blocks HTTP
+    # clients that lack a browser-like User-Agent (Cloudflare error 1010,
+    # surfaced as HTTP 403). Sending a normal browser User-Agent gets the
+    # request through reliably.
+    return ChatGroq(
+        model=settings.groq_model_name,
+        api_key=settings.groq_api_key,
+        temperature=settings.llm_temperature,
+        default_headers={"User-Agent": settings.groq_user_agent},
+    )
+
+
 def get_llm() -> BaseChatModel:
     """
     Returns a LangChain ChatModel for the configured provider.
@@ -64,4 +99,6 @@ def get_llm() -> BaseChatModel:
     """
     if settings.llm_provider == LLMProvider.GEMINI:
         return _create_gemini()
+    if settings.llm_provider == LLMProvider.GROQ:
+        return _create_groq()
     return _create_lm_studio()

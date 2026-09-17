@@ -20,6 +20,7 @@ class LLMProvider(str, Enum):
 
     LM_STUDIO = "lm_studio"
     GEMINI = "gemini"
+    GROQ = "groq"
 
 
 class Settings(BaseSettings):
@@ -30,8 +31,9 @@ class Settings(BaseSettings):
     This keeps secrets and environment-specific values out of code.
     """
 
-    # Which LLM backend to use
-    llm_provider: LLMProvider = LLMProvider.LM_STUDIO
+    # Which LLM backend to use. Groq is the recommended default:
+    # fast (LPU inference) with a generous free tier.
+    llm_provider: LLMProvider = LLMProvider.GROQ
 
     # LLM Provider settings
     # LM Studio exposes an OpenAI-compatible API on localhost
@@ -43,6 +45,27 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model_name: str = "gemini-flash-latest"
 
+    # Groq settings (used when llm_provider == "groq")
+    # Free tier is fast (LPU inference) with generous limits.
+    # Get a free key at https://console.groq.com/keys
+    groq_api_key: str = ""
+    groq_model_name: str = "openai/gpt-oss-20b"
+    # Browser-like User-Agent so Cloudflare (in front of Groq) doesn't
+    # block requests with a 1010/403 on networks that fingerprint clients.
+    groq_user_agent: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    )
+
+    # --- Preprocessing / chunking settings ---
+    # Approximate characters per chunk when splitting long transcripts.
+    # ~6000 chars ≈ ~1500 tokens, small enough for fast per-call latency.
+    chunk_size_chars: int = 6000
+    # Overlap between chunks so context isn't lost at boundaries.
+    chunk_overlap_chars: int = 400
+    # Transcripts shorter than this skip chunking entirely (single call).
+    chunk_threshold_chars: int = 6000
+
     # API settings
     api_host: str = "0.0.0.0"
     api_port: int = 8000
@@ -50,7 +73,7 @@ class Settings(BaseSettings):
     # Throttle between LLM calls (seconds). Helps stay under strict
     # rate limits like the Gemini free tier (5 requests/minute).
     # Set to 0 to disable (e.g. for local LM Studio which has no limit).
-    llm_call_delay: float = 13.0
+    llm_call_delay: float = 0.0
 
     # --- Transcription (Speech-to-Text) settings ---
     # Whisper model size: tiny, base, small, medium, large-v3.

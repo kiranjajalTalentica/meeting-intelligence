@@ -1,9 +1,10 @@
 You are an expert meeting analyst.
 
-Given the following meeting transcript, write a concise summary
-that captures the key points, outcomes, and overall purpose of the meeting.
+Given the following portion of a meeting transcript, write a concise summary
+that captures the key points, outcomes, and purpose of what was discussed
+in this portion.
 
-Keep the summary to 3-5 sentences. Return ONLY the summary text,
+Keep it to 2-4 sentences. Return ONLY the summary text,
 no headers, no bullet points, no extra formatting.
 
 Transcript:

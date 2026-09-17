@@ -12,6 +12,7 @@ Why not use LangChain's `with_structured_output()` directly?
 - This approach works with ANY model that can output JSON
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -24,6 +25,23 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Tracks whether we've made at least one LLM call yet. The rate limit
+# only cares about calls within a rolling minute, so the very first call
+# doesn't need to wait — skipping that leading delay saves ~one delay
+# per pipeline run with no risk of tripping the limit.
+_first_call_done = False
+
+
+def reset_throttle() -> None:
+    """
+    Reset the throttle so the next LLM call skips its leading delay.
+
+    Call this at the start of each pipeline run so the first call of
+    every run avoids the unnecessary up-front wait.
+    """
+    global _first_call_done
+    _first_call_done = False
+
 
 def _throttle() -> None:
     """
@@ -32,7 +50,14 @@ def _throttle() -> None:
     The Gemini free tier allows only 5 requests/minute. Since our
     pipeline makes 5 LLM calls, spacing them ~13s apart keeps us
     safely under the limit. Controlled by settings.llm_call_delay.
+
+    The first call in a pipeline run skips the delay: there's nothing
+    to space it from, so waiting up front just wastes time.
     """
+    global _first_call_done
+    if not _first_call_done:
+        _first_call_done = True
+        return
     if settings.llm_call_delay > 0:
         time.sleep(settings.llm_call_delay)
 
@@ -142,3 +167,133 @@ def _parse_json_array(text: str) -> list[dict] | None:
         pass
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Async, chunk-aware extraction
+# ---------------------------------------------------------------------------
+#
+# These helpers run one LLM call per transcript chunk concurrently, then
+# merge the results. This keeps each call small and fast regardless of how
+# long the meeting is. Used by the async pipeline that replaced LangGraph.
+
+
+async def extract_json_list_from_chunks(
+    llm: BaseChatModel,
+    prompt_template: str,
+    chunks: list[str],
+    model_class: type[BaseModel],
+) -> list[BaseModel]:
+    """
+    Run a JSON-list extraction prompt over every chunk concurrently and
+    return the merged, de-duplicated list of validated models.
+
+    Args:
+        llm: The chat model to call.
+        prompt_template: A template containing a `{transcript}` placeholder.
+        chunks: Transcript chunks to process.
+        model_class: Pydantic model to validate each item against.
+    """
+    tasks = [
+        _invoke_json_list(llm, prompt_template.format(transcript=chunk), model_class)
+        for chunk in chunks
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    merged: list[BaseModel] = []
+    for res in results:
+        if isinstance(res, Exception):
+            logger.error("Chunk extraction failed: %s", res)
+            continue
+        merged.extend(res)
+
+    return _dedupe_models(merged)
+
+
+async def _invoke_json_list(
+    llm: BaseChatModel,
+    prompt: str,
+    model_class: type[BaseModel],
+) -> list[BaseModel]:
+    """Call the LLM once (async) and parse a JSON array into models."""
+    response = await llm.ainvoke(prompt)
+    raw_text = response.content.strip()
+
+    json_array = _parse_json_array(raw_text)
+    if json_array is None:
+        logger.warning(
+            "Could not parse JSON array from chunk response: %s",
+            raw_text[:300],
+        )
+        return []
+
+    results: list[BaseModel] = []
+    for item in json_array:
+        try:
+            results.append(model_class.model_validate(item))
+        except ValidationError as e:
+            logger.warning(
+                "Item failed validation for %s: %s", model_class.__name__, e
+            )
+    return results
+
+
+def _dedupe_models(items: list[BaseModel]) -> list[BaseModel]:
+    """
+    Remove duplicate models that arise from overlapping chunks.
+
+    Two items are considered duplicates if their serialized field values
+    (excluding source_reference) match. Keeps the first occurrence.
+    """
+    seen: set = set()
+    unique: list[BaseModel] = []
+    for item in items:
+        data = item.model_dump()
+        data.pop("source_reference", None)
+        key = json.dumps(data, sort_keys=True).lower().strip()
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return unique
+
+
+async def summarize_chunks(
+    llm: BaseChatModel,
+    map_template: str,
+    reduce_template: str,
+    chunks: list[str],
+) -> str:
+    """
+    Map-reduce summarization.
+
+    1. MAP: summarize each chunk concurrently.
+    2. REDUCE: combine the per-chunk summaries into one final summary.
+
+    For a single chunk, skips the reduce step and returns the map result.
+    """
+    map_tasks = [
+        _invoke_text(llm, map_template.format(transcript=chunk))
+        for chunk in chunks
+    ]
+    map_results = await asyncio.gather(*map_tasks, return_exceptions=True)
+
+    partial_summaries = [
+        r for r in map_results if not isinstance(r, Exception) and r
+    ]
+    for r in map_results:
+        if isinstance(r, Exception):
+            logger.error("Chunk summary failed: %s", r)
+
+    if not partial_summaries:
+        return ""
+    if len(partial_summaries) == 1:
+        return partial_summaries[0]
+
+    combined = "\n".join(f"- {s}" for s in partial_summaries)
+    return await _invoke_text(llm, reduce_template.format(summaries=combined))
+
+
+async def _invoke_text(llm: BaseChatModel, prompt: str) -> str:
+    """Call the LLM once (async) and return stripped text."""
+    response = await llm.ainvoke(prompt)
+    return response.content.strip()

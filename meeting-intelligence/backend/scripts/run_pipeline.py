@@ -1,8 +1,8 @@
 """
 End-to-End Pipeline Test.
 
-Runs the full LangGraph workflow against the sample transcript.
-Use this to verify the entire pipeline works after LM Studio is running.
+Runs the full async pipeline (preprocess -> chunk -> extract) against the
+sample transcript. Use this to verify the entire pipeline works.
 
 Usage:
     cd backend
@@ -10,21 +10,28 @@ Usage:
 
 This will:
 1. Load the sample transcript
-2. Run the full LangGraph workflow
+2. Run the full async analysis pipeline
 3. Print all extracted insights
 """
 
 import sys
 import json
+import asyncio
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.graph.workflow import build_workflow
-from app.schemas.outputs import MeetingInsights
+# Force UTF-8 stdout so summaries containing non-ASCII characters
+# (e.g. narrow no-break spaces from the LLM) print on Windows consoles.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+from app.pipeline import analyze_transcript
 
 
-def main():
+async def main():
     # Load sample transcript
     transcript_path = Path(__file__).parent.parent / "data" / "sample_transcript.txt"
     transcript = transcript_path.read_text(encoding="utf-8")
@@ -36,34 +43,10 @@ def main():
     print(f"First 100 chars: {transcript[:100]}...")
     print()
 
-    # Build and run workflow
-    print("Building workflow...")
-    workflow = build_workflow()
-
-    print("Running pipeline (this may take a minute with a local model)...")
+    print("Running pipeline...")
     print()
 
-    initial_state = {
-        "meeting_id": "demo-001",
-        "transcript": transcript,
-        "topics": [],
-        "summary": "",
-        "decisions": [],
-        "action_items": [],
-        "open_questions": [],
-    }
-
-    result = workflow.invoke(initial_state)
-
-    # Build structured output
-    insights = MeetingInsights(
-        meeting_id=result["meeting_id"],
-        summary=result["summary"],
-        topics=result["topics"],
-        decisions=result["decisions"],
-        action_items=result["action_items"],
-        open_questions=result["open_questions"],
-    )
+    insights = await analyze_transcript("demo-001", transcript)
 
     # Print results
     print("=" * 60)
@@ -101,4 +84,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

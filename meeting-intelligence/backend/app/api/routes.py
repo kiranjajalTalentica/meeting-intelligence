@@ -10,14 +10,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from app.llm.provider import get_llm
+from app.pipeline import analyze_transcript
 from app.schemas.inputs import MeetingTranscriptInput
 from app.schemas.outputs import MeetingInsights
-from app.graph.workflow import build_workflow
 
 router = APIRouter()
-
-# Compile the workflow once at module level for reuse
-workflow = build_workflow()
 
 # Path to the bundled sample transcript
 SAMPLE_TRANSCRIPT_PATH = (
@@ -32,31 +29,13 @@ async def analyze_meeting(input_data: MeetingTranscriptInput):
 
     This endpoint:
     1. Accepts a meeting_id and transcript text.
-    2. Runs the LangGraph workflow (topic detection → parallel extraction).
-    3. Returns structured MeetingInsights.
+    2. Preprocesses (cleans + chunks) the transcript.
+    3. Runs summary (map-reduce) and the four extractors concurrently,
+       each over all chunks, then merges the results.
+    4. Returns structured MeetingInsights.
     """
-    # Prepare initial state for the graph
-    initial_state = {
-        "meeting_id": input_data.meeting_id,
-        "transcript": input_data.transcript,
-        "topics": [],
-        "summary": "",
-        "decisions": [],
-        "action_items": [],
-        "open_questions": [],
-    }
-
-    # Invoke the compiled workflow
-    result = workflow.invoke(initial_state)
-
-    # Build and return the response
-    return MeetingInsights(
-        meeting_id=result["meeting_id"],
-        summary=result["summary"],
-        topics=result["topics"],
-        decisions=result["decisions"],
-        action_items=result["action_items"],
-        open_questions=result["open_questions"],
+    return await analyze_transcript(
+        input_data.meeting_id, input_data.transcript
     )
 
 
